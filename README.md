@@ -35,5 +35,5 @@ Releases are pinned by version.
 ## Licence, icon and privacy
 
 - Licence: all rights reserved; you may install and run the plugin to reach a StepUpWork workshop you belong to. See `LICENSE`.
-- Icon: `plugins/stepupwork/.claude-plugin/icon.png` (1024 px), drawn from `assets/icon.svg`: the G mark, #d9745f on #1a1513.
+- Icon: `plugins/stepupwork/.claude-plugin/icon.png` (512 px), the StepUpWork mark on dark, from `assets/icon.svg`.
 - Privacy: https://stepuptech.ai/privacy
