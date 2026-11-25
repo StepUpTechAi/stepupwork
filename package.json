@@ -1,0 +1,9 @@
+{
+  "name": "stepupwork-marketplace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/thin-client-check.mjs plugins/stepupwork",
+    "test": "node --test test/*.test.mjs"
+  }
+}

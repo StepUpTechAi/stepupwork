@@ -1,0 +1,12 @@
+{
+  "hooks": ["session.start", "session.end", "tool.call{tool=Bash}", "command.run", "ui.render{component=Pane}"],
+  "calls": ["$.mcp.call", "$.ui.*", "$.clock.every", "$.state", "$.store"],
+  "never": ["$.http.fetch", "$.process.run", "$.fs.*", "tool.check", "prompt.submit", "$.model.complete"],
+  "hubRoutes": ["/mcp"],
+  "publicAddresses": ["https://stepuptech.ai/privacy"],
+  "limits": {
+    "stringChars": 200,
+    "skillChars": 1200,
+    "moduleLines": 200
+  }
+}

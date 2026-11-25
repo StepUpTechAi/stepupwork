@@ -1,0 +1,26 @@
+{
+  "name": "stepupwork",
+  "version": "0.1.0",
+  "description": "Connect Claude to a StepUpWork workshop: its MCP server, a short skill and a pane beside the chat.",
+  "author": {
+    "name": "StepUpTechAi"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "./.claude-plugin/icon.png",
+  "privacyPolicyUrl": "https://stepuptech.ai/privacy",
+  "userConfig": {
+    "hub_url": {
+      "type": "string",
+      "title": "Hub URL",
+      "description": "The address of your StepUpWork hub, for example https://hub.example.com - no trailing slash. Claude connects to <hub_url>/mcp.",
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "stepupwork": {
+      "type": "http",
+      "url": "${user_config.hub_url}/mcp"
+    }
+  },
+  "types": "./types/index.d.ts"
+}
