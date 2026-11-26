@@ -1,9 +1,10 @@
 {
   "name": "stepupwork",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Connect Claude to a StepUpWork workshop: its MCP server, a short skill and a pane beside the chat.",
+  "displayName": "StepUpWork",
   "author": {
-    "name": "StepUpTechAi"
+    "name": "Step Up Tech"
   },
   "license": "SEE LICENSE IN LICENSE",
   "icon": "./.claude-plugin/icon.png",

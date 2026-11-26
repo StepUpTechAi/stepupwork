@@ -1,10 +1,15 @@
 {
   "name": "stepupwork",
-  "owner": { "name": "StepUpTechAi" },
-  "metadata": { "description": "StepUpWork for Claude: a thin client for a StepUpWork workshop." },
+  "owner": {
+    "name": "Step Up Tech"
+  },
+  "metadata": {
+    "description": "StepUpWork for Claude: a thin client for a StepUpWork workshop."
+  },
   "plugins": [
     {
       "name": "stepupwork",
+      "displayName": "StepUpWork",
       "source": "./plugins/stepupwork",
       "description": "Connect Claude to a StepUpWork workshop: its MCP server, a short skill and a pane beside the chat."
     }
