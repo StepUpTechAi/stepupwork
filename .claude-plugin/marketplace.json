@@ -11,7 +11,7 @@
       "name": "stepupwork",
       "displayName": "StepUpWork",
       "source": "./plugins/stepupwork",
-      "description": "Connect Claude to a StepUpWork workshop: its MCP server, a short skill and a pane beside the chat."
+      "description": "Connect Claude to a StepUpWork workshop: its MCP server, two short skills and a pane beside the chat."
     }
   ]
 }

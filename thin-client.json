@@ -4,13 +4,19 @@
     "session.end",
     "tool.call{tool=Bash}",
     "command.run",
-    "ui.render{component=Pane}"
+    "ui.render{component=Pane}",
+    "ui.render{component=AbovePrompt}",
+    "ui.render{component=BesidePrompt}",
+    "ui.render{component=ToolUse}",
+    "ui.render{component=ContextMenu}"
   ],
   "calls": [
     "$.mcp.call",
     "$.mcp.connect",
     "$.ui.*",
     "$.clock.every",
+    "$.clock.now",
+    "$.prompt.fill",
     "$.state",
     "$.store"
   ],

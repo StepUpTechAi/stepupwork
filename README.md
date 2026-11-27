@@ -17,8 +17,9 @@ There is nothing to set: Claude connects to https://sut.stepupwork.com/mcp. The 
 ## What you get
 
 - The workshop's tools, through the MCP server.
-- A short skill, `deliver-ticket`, for picking up and handing in a ticket.
+- Two short skills: `deliver-ticket`, for picking up and handing in a ticket, and `hey-jen`, for talking to Jen from any chat.
 - A pane beside the chat. Open it with `/stepupwork`. Assign yourself a ticket with `/stepupwork assign KEY`.
+- A status line with your ticket and its train, a toast when a train goes red or lands, and a card under the workshop's calls.
 
 The pane works in Claude Code. In claude.ai and the desktop chat you get the same tools, answered as text.
 
@@ -31,6 +32,23 @@ Add the marketplace under `extraKnownMarketplaces`, and set `enabledPlugins` to 
 The list is in `thin-client.json`. CI refuses a change that goes past it: long prompt or rule text, any hub route other than `/mcp`, or a hook or call that is not listed. It also runs `claude plugin validate` and the mod's tests.
 
 Releases are pinned by version.
+
+## Release notes
+
+### 0.2.0
+
+- The pane shows where you are: signed out, ready work, the ticket you're working on, a question from Jen, or your train gone red.
+- Ready work lists each ticket's key, title and step, with the next one marked. Assign takes it and the pane moves to your ticket.
+- Your ticket shows its train, how long you've had it, its brief, and its acceptance criteria as a checklist you tick. The ticks are yours: they stay with the plugin on your computer, not in the workshop.
+- The pane checks the workshop every minute, and every 20 seconds while your train runs. It doesn't check while you're signed out.
+- When a train goes red or lands you get one toast and one notice, never two for the same thing. The status line shows your ticket and its train, and clears when the session ends.
+- Jen's questions show one at a time, with Jen's choices and suggestion, Skip, and a box for your own answer. A mark beside the prompt shows while one waits.
+- While a question from Jen waits, a "Jen asks" row sits above the prompt with Jen's quick replies and Open. An answer there goes the same way as one in the pane, and the row moves to the next question or goes. The terminal draws it as one line of text (press 1, 2… or o once the row has focus, or a digit in an empty prompt); the desktop draws it with buttons.
+- Calls to submit, assign and train get a card with what happened and a link to the workshop. Right-click a ticket key to open it in the workshop or ask Jen about it.
+- Hand in puts a prompt in the box asking Claude to push the branch and submit. The plugin never submits by itself.
+- New skill, `hey-jen`: Claude passes your words to Jen and quotes Jen's back, and never speaks as Jen. Until the workshop can take a message for Jen, Claude says so.
+- The pane opens by itself at the start of a session only when you hold a ticket or a question waits, and only in the desktop's Code tab. In a terminal, open it with `/stepupwork`.
+- The mod may now also draw above and beside the prompt, under tool calls and in the right-click menu, read the clock and fill the prompt. `thin-client.json` lists them.
 
 ## Licence, icon and privacy
 
