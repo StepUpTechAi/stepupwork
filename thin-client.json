@@ -8,6 +8,7 @@
   ],
   "calls": [
     "$.mcp.call",
+    "$.mcp.connect",
     "$.ui.*",
     "$.clock.every",
     "$.state",

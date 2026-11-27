@@ -1,8 +1,13 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'stepupwork'
-const SERVER = 'plugin:stepupwork:stepupwork'
+// The plugin server first, then the claude.ai connector of the same name: a
+// session started from the claude.ai plugin has the connector signed in, while
+// the plugin server may still wait on sign-in.
+const SERVERS = ['plugin:stepupwork:stepupwork', 'claude.ai stepupwork', 'stepupwork']
+// A plugin command also arrives under the plugin name.
+const COMMANDS = ['stepupwork', 'stepupwork:stepupwork']
 
 // Change a tag when what an atom holds changes: it declines what an earlier
 // version stored, which outlives a reload.
@@ -13,8 +18,30 @@ const ticket = atom({ plugin: 'stepupwork', key: 'ticket' } as const, '', {
   shape: 'ticket-1',
 })
 
-const textOf = (r: { content: { type: string; text?: string }[] }) =>
-  r.content.map(c => c.text ?? '').join('\n')
+type Result = { content: { type: string; text?: string }[]; isError?: boolean }
+
+const textOf = (r: Result) => r.content.map(c => c.text ?? '').join('\n')
+
+const SIGN_IN =
+  'StepUpWork is not signed in here. Connect it in Settings › Plugins, or run /mcp and sign in to stepupwork.'
+
+// The first of SERVERS that is connected, or null when none is.
+let server: string | null = null
+
+async function call($: EngineInterface, tool: string, args: Record<string, unknown>): Promise<Result | null> {
+  if (server === null) {
+    for (const s of SERVERS) {
+      const c = await $.mcp.connect(s)
+      if (c.isConnected) {
+        server = c.server
+        break
+      }
+    }
+  }
+  if (server === null) return null
+
+  return (await $.mcp.call(server, tool, args)) as Result
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -36,35 +63,40 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
     const key = (await $.store.get('ticket')) as string | undefined
-    if (key) {
-      void $.mcp.call(SERVER, 'log_work', { ticket: key, call: e.tool_use_id })
-    }
+    if (key) void call($, 'log_work', { ticket: key, call: e.tool_use_id }).catch(() => {})
 
     return ran
   })
 
-  on('command.run', { command: 'stepupwork' }, async ($, e) => {
-    const [verb, key] = e.args.trim().split(/\s+/)
-    if (verb === 'assign' && key) {
-      const r = await $.mcp.call(SERVER, 'assign', { ticket: key })
-      if (r.isError) {
-        $.ui.toast(textOf(r))
+  for (const command of COMMANDS) {
+    on('command.run', { command }, async ($, e) => {
+      const [verb, key] = e.args.trim().split(/\s+/)
+      if (verb === 'assign' && key) {
+        const r = await call($, 'assign', { ticket: key })
+        if (!r) {
+          $.ui.toast(SIGN_IN)
 
-        return { text: textOf(r) }
+          return { text: SIGN_IN }
+        }
+        if (r.isError) {
+          $.ui.toast(textOf(r))
+
+          return { text: textOf(r) }
+        }
+        await $.store.set('ticket', key)
+        await update($, ticket, () => key)
+        $.ui.status(key)
+        $.ui.toast(`Assigned ${key} to you`)
+
+        return { text: `Assigned ${key} to you.` }
       }
-      await $.store.set('ticket', key)
-      await update($, ticket, () => key)
-      $.ui.status(key)
-      $.ui.toast(`Assigned ${key} to you`)
+      await $.ui.open({ id: PANE, title: 'StepUpWork' })
+      const r = await call($, 'ready_work', {})
+      await update($, ready, () => (r ? textOf(r) : SIGN_IN))
 
-      return { text: `Assigned ${key} to you.` }
-    }
-    await $.ui.open({ id: PANE, title: 'StepUpWork' })
-    const r = await $.mcp.call(SERVER, 'ready_work', {})
-    await update($, ready, () => textOf(r))
-
-    return { text: 'StepUpWork pane opened.' }
-  })
+      return { text: r ? 'StepUpWork pane opened.' : SIGN_IN }
+    })
+  }
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
