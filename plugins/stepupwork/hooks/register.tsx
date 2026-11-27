@@ -12,7 +12,7 @@ const COMMANDS = ['stepupwork', 'stepupwork:stepupwork']
 // Change a tag when what an atom holds changes: it declines what an earlier
 // version stored, which outlives a reload.
 const ready = atom({ plugin: 'stepupwork', key: 'ready' } as const, '', {
-  shape: 'ready-1',
+  shape: 'ready-2',
 })
 const ticket = atom({ plugin: 'stepupwork', key: 'ticket' } as const, '', {
   shape: 'ticket-1',
@@ -21,6 +21,35 @@ const ticket = atom({ plugin: 'stepupwork', key: 'ticket' } as const, '', {
 type Result = { content: { type: string; text?: string }[]; isError?: boolean }
 
 const textOf = (r: Result) => r.content.map(c => c.text ?? '').join('\n')
+
+type Row = { key: string; title: string; step?: string | null; claimable?: boolean }
+type Ready = {
+  groups?: { project?: string; lane?: string; rows?: Row[] }[]
+  next?: { key?: string } | null
+  counts?: { canClaim?: number }
+}
+
+// ready_work answers JSON: the pane shows it as lines, the next ticket first
+function listOf(text: string): string {
+  let r: Ready
+  try {
+    r = JSON.parse(text) as Ready
+  } catch {
+    return text
+  }
+  const lines: string[] = []
+  if (r.next?.key) lines.push(`Next: ${r.next.key}`, '')
+  for (const g of r.groups ?? []) {
+    lines.push([g.project, g.lane].filter(Boolean).join(' · '))
+    for (const row of g.rows ?? []) lines.push(`  ${row.key}  ${row.title}${row.step ? ` (${row.step})` : ''}`)
+    lines.push('')
+  }
+  if (!lines.length) return 'Nothing ready for you.'
+  const n = r.counts?.canClaim
+  lines.push(`${n == null ? '' : `${n} you can claim. `}Take one: /stepupwork assign KEY`)
+
+  return lines.join('\n')
+}
 
 const SIGN_IN =
   'StepUpWork is not signed in here. Connect it in Settings › Plugins, or run /mcp and sign in to stepupwork.'
@@ -92,7 +121,7 @@ export const register: Register = on => {
       }
       await $.ui.open({ id: PANE, title: 'StepUpWork' })
       const r = await call($, 'ready_work', {})
-      await update($, ready, () => (r ? textOf(r) : SIGN_IN))
+      await update($, ready, () => (r ? (r.isError ? textOf(r) : listOf(textOf(r))) : SIGN_IN))
 
       return { text: r ? 'StepUpWork pane opened.' : SIGN_IN }
     })
