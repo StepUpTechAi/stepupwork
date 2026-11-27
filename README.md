@@ -12,7 +12,7 @@ In a Claude Code session:
 
 In the desktop app's Code tab: click +, then Plugins, then Add marketplace, enter `StepUpTechAi/stepupwork`, then Add plugin.
 
-Set the option `hub_url` to the address of your hub, with no trailing slash. Claude connects to `<hub_url>/mcp`. The server shows as needing sign-in until you sign in from `/mcp`.
+There is nothing to set: Claude connects to https://sut.stepupwork.com/mcp. The server shows as needing sign-in until you press Connect on the plugin (or sign in from `/mcp`).
 
 ## What you get
 

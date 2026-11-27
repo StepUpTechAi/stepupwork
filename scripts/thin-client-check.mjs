@@ -46,6 +46,8 @@ for (const file of walk(root)) {
     if (!list.hubRoutes.includes(m[1])) errors.push(`${rel}: hub route ${m[1] || '/'} is not on the list`)
   }
   for (const m of text.matchAll(/https?:\/\/[^\s"'`)]+/g)) {
+    // The one connect address (0.1.3): the hub's own routes on it, nothing else there.
+    if (list.hubAddress && m[0].startsWith(list.hubAddress)) { if (!list.hubRoutes.includes(m[0].slice(list.hubAddress.length))) errors.push(`${rel}: hub route ${m[0].slice(list.hubAddress.length) || '/'} is not on the list`); continue }
     if (!/example\.com/.test(m[0]) && !(list.publicAddresses ?? []).includes(m[0])) errors.push(`${rel}: address ${m[0]} is not on the list`)
   }
   for (const m of text.matchAll(/\bhub_url\b[^\n]*?\+\s*['"`]([^'"`]*)/g)) {

@@ -36,7 +36,7 @@ test('a long skill fails', () => {
 test('a second hub route fails', () => {
   const dir = copy()
   const m = join(dir, '.claude-plugin/plugin.json')
-  const text = readFileSync(m, 'utf8').replace('"type": "http",', '"type": "http",\n      "extra": "${user_config.hub_url}/api/rank",')
+  const text = readFileSync(m, 'utf8').replace('"type": "http",', '"type": "http",\n      "extra": "https://sut.stepupwork.com/api/rank",')
   writeFileSync(m, text)
   const r = run(dir)
   assert.strictEqual(r.status, 1)

@@ -8,6 +8,6 @@ Install it in a Claude Code session:
 /plugin install stepupwork --marketplace StepUpTechAi/stepupwork
 ```
 
-Set the option `hub_url` to your hub's address with no trailing slash, then sign in from `/mcp`. Open the pane with `/stepupwork`, and assign yourself a ticket with `/stepupwork assign KEY`. The workshop holds the rules; the plugin only shows and calls.
+Press Connect on the plugin (or sign in from `/mcp`); there is no address to set. Open the pane with `/stepupwork`, and assign yourself a ticket with `/stepupwork assign KEY`. The workshop holds the rules; the plugin only shows and calls.
 
 Privacy: https://stepuptech.ai/privacy
