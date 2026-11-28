@@ -14,7 +14,9 @@ export const SURFACES = ['terminal', 'desktop'] as const
 export const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } } as const
 
 type Answer = unknown | ((args: Record<string, unknown>) => unknown)
-type Options = { isSignedIn?: boolean; store?: Record<string, unknown> }
+// `servers`: what each name $.mcp.connect is asked answers, as the engine would:
+// the name it runs under, or none. Absent, the claude.ai connector alone is in.
+type Options = { isSignedIn?: boolean; store?: Record<string, unknown>; servers?: Record<string, string | null> }
 
 export const READY = {
   groups: [
@@ -63,13 +65,20 @@ export function world(on: On, answers: Record<string, Answer>, options: Options 
 
     return { value: undefined }
   })
-  on('mcp.connect', (_, e) => ({
-    value: (options.isSignedIn !== false && e.server === 'claude.ai stepupwork'
-      ? { isConnected: true, server: e.server }
-      : { isConnected: false, reason: 'needs-auth', message: 'Sign in first' }) as never,
-  }))
+  const asked: string[] = []
+  const servers = options.servers ?? { 'claude.ai stepupwork': 'claude.ai stepupwork' }
+  on('mcp.connect', (_, e) => {
+    asked.push(e.server)
+    const as = options.isSignedIn !== false ? servers[e.server] : null
+
+    return {
+      value: (as ? { isConnected: true, server: as } : { isConnected: false, reason: 'auth', message: 'Sign in first' }) as never,
+    }
+  })
+  const via: string[] = []
   on('mcp.call', (_, e) => {
     calls.push({ tool: e.tool, args: e.args })
+    via.push(e.server)
     const a = answers[e.tool]
     const v = typeof a === 'function' ? (a as (args: Record<string, unknown>) => unknown)(e.args) : a
     const text = v === undefined ? `No tool ${e.tool}` : typeof v === 'string' ? v : JSON.stringify(v)
@@ -106,6 +115,8 @@ export function world(on: On, answers: Record<string, Answer>, options: Options 
   on('tool.call', () => ({ result: {} }) as never)
 
   return {
+    asked,
+    via,
     calls,
     toasts,
     notices,

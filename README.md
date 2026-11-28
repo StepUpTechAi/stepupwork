@@ -35,6 +35,17 @@ Releases are pinned by version.
 
 ## Release notes
 
+### 0.2.1
+
+- Each ready ticket's row shows its key, its title cut short with "…", a Next mark on the next ticket, its step, and the Assign button, at any pane width. Only the title gets shorter. In a pane too narrow for the button beside the title, the button goes on the line under it, so it is never pushed out of sight.
+- A ticket you can't take yet is greyed out, with the reason where its button would be ("Overlaps …") and a line under the list saying what it waits for.
+- Under "Nothing claimed" the pane says how many tickets are ready for you and how many questions Jen has for you. The status line, the header and the list use the same number.
+- When Jen has questions for you, a card says how many, with Answer to answer them right in the pane, one at a time.
+- At the foot of the pane: when it last read the workshop and how often it checks, and a link to open the workshop.
+- Jen's questions show in full in the pane, in the row above the prompt and when you ask in a chat: the question and every choice, never cut off. The buttons carry short labels, and the full words of each choice sit above them. If the workshop itself sent a question cut short, the pane says the full question is in the workshop and links to it.
+- The ticket you're working on looks as designed: its points, its train, a bar for your acceptance ticks, the first files the brief plans to change, and Hand in…, Park… and Let it go…. A red train shows each round's steps and the other tickets on it, where the workshop sends them.
+- The pane now tries the plugin's own connection to the workshop first. If that one still needs you to sign in but the claude.ai connector is signed in, the pane and the skills use the connector, which reaches the same workshop.
+
 ### 0.2.0
 
 - The pane shows where you are: signed out, ready work, the ticket you're working on, a question from Jen, or your train gone red.

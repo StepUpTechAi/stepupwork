@@ -1,6 +1,6 @@
 {
   "name": "stepupwork",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Connect Claude to a StepUpWork workshop: its MCP server, two short skills and a pane beside the chat.",
   "displayName": "StepUpWork",
   "author": {
