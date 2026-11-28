@@ -63,15 +63,15 @@ test('working shows the ticket, its time on it, the brief and ticks a seeded sto
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /^· / }))?.text).toBe('· 1 h 12 min')
     expect((await ui.find({ type: 'Text', text: /^ 3 points $/ }))?.text).toBe(' 3 points ')
-    expect((await ui.find({ type: 'Text', text: /^Latest:/ }))?.text).toBe('Latest: ran the tests, all passed')
+    expect((await ui.find({ type: 'Text', text: /^Latest:$/ }))?.props.dimColor).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /^ran the tests/ }))?.text).toBe('ran the tests, all passed')
     expect((await ui.find({ type: 'Text', text: /^r3/ }))?.text).toBe('r3 · fresh · 2 planned paths')
+    // A Progress on both surfaces: the kit draws it as its label, its figure and a bar.
+    expect((await ui.find({ type: 'Text', text: /ticked by you/ }))?.text).toContain('2 of 3 ticked by you')
     if (surface === 'terminal') {
-      expect((await ui.find({ type: 'Text', text: /^Acceptance/ }))?.text).toBe('Acceptance · 2 of 3 ticked by you')
       expect((await ui.find({ type: 'Button', key: 'tick-0' }))?.text).toContain('[x]')
       expect((await ui.find({ type: 'Button', key: 'tick-1' }))?.text).toContain('[ ]')
     } else {
-      // The kit draws a Progress as its label, its figure and a bar.
-      expect((await ui.find({ type: 'Text', text: /ticked by you/ }))?.text).toContain('2 of 3 ticked by you')
       expect((await ui.find({ type: 'Button', key: 'tick-2' }))?.text).toContain('☑')
     }
     await ui.unmount()

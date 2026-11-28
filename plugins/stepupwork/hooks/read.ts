@@ -1,11 +1,12 @@
 // Reads what the workshop tools answer into what the pane draws. Every field is
 // read only when present: a tool that answers less than this still draws.
-import type { Held, Question, Ready, Status, Train } from '../types'
+import type { Held, Ready, Round, Status, Train } from '../types'
 
 export type Result = { content: { type: string; text?: string }[]; isError?: boolean; structuredContent?: unknown }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
 
+export type { Any }
 export const textOf = (r: Result) => r.content.map(c => c.text ?? '').join('\n')
 
 export function objectOf(r: Result): Any {
@@ -17,9 +18,9 @@ export function objectOf(r: Result): Any {
   }
 }
 
-const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : typeof v === 'number' ? String(v) : undefined)
-const num = (v: unknown) => (typeof v === 'number' ? v : undefined)
-const words = (v: Any) => str(v) ?? str(v?.text) ?? str(v?.label)
+export const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : typeof v === 'number' ? String(v) : undefined)
+export const num = (v: unknown) => (typeof v === 'number' ? v : undefined)
+export const words = (v: Any) => str(v) ?? str(v?.text) ?? str(v?.label)
 const list = (v: Any): string[] => (Array.isArray(v) ? v.map(words).filter((w): w is string => !!w) : [])
 export const https = (v: unknown) => (typeof v === 'string' && v.startsWith('https://') ? v : undefined)
 
@@ -30,12 +31,35 @@ function time(v: unknown): number | undefined {
   return Number.isNaN(t) ? undefined : t
 }
 
+const arr = (v: unknown): Any[] => (Array.isArray(v) ? v : [])
+
+// A round as `train` answers it: its steps where sent, else where it went red.
+function roundOf(r: Any, i: number): Round {
+  const steps = arr(r?.steps)
+    .map(x => (typeof x === 'string' ? { name: x, result: '' } : { name: str(x?.name) ?? str(x?.step) ?? '', result: str(x?.result) ?? str(x?.state) ?? '' }))
+    .filter(x => x.name)
+
+  return { n: num(r?.n) ?? i + 1, result: str(r?.result), redAt: str(r?.redAt), steps, fixed: !!r?.fix || r?.fixed === true }
+}
+
 function trainOf(t: Any): Train | undefined {
   const n = str(t?.n) ?? str(t?.id)
   if (!n) return undefined
-  const red = str(t.red) ?? str(t.red?.at) ?? str(t.red?.step)
+  const red = str(t.red) ?? str(t.red?.at) ?? str(t.red?.step) ?? str(t.redAt)
+  const tickets = arr(t.tickets)
+    .map(x => ({ key: str(x?.key) ?? str(x) ?? '', isMine: x?.mine === true || x?.isMine === true }))
+    .filter(x => x.key)
 
-  return { n, state: str(t.state) ?? (red ? 'red' : ''), round: num(t.round), red, link: https(t.link) }
+  return {
+    n,
+    state: str(t.state) ?? (red ? 'red' : ''),
+    round: num(t.round),
+    red,
+    at: time(t.red?.since ?? t.redSince ?? t.since ?? t.at),
+    link: https(t.link),
+    rounds: arr(t.rounds).map(roundOf),
+    tickets,
+  }
 }
 
 // my_status: today a line (and counts); with the hub’s new fields, the lease,
@@ -83,11 +107,15 @@ export function noticesOf(r: Result, s: Status): Notice[] {
   return [{ id: `train-${t.n}-${t.state}-${t.round ?? 0}`, text, isBig: true }]
 }
 
-export function statusLine(s: Status): string | undefined {
-  const t = s.train
-  if (s.key && t) return `${s.key} · train ${t.n} ${t.state === 'red' && t.red ? `red at ${t.red}` : t.state}`.trim()
+// Why a row waits, in one line: from the hub’s own words, else its overlap.
+function waitsOf(row: Any): string | undefined {
+  const said = str(row.waits) ?? str(row.reasonLong) ?? str(row.overlap?.why)
+  if (said) return said
+  const on = str(row.overlap?.with)
+  if (!on) return undefined
+  const files = arr(row.overlap?.paths).length
 
-  return s.line ?? s.key
+  return `${row.key} waits until ${on} lands${files ? `: they change the same file${files === 1 ? '' : 's'}` : ''}.`
 }
 
 export function readyOf(r: Result): Ready {
@@ -102,30 +130,12 @@ export function readyOf(r: Result): Ready {
       points: num(row.points),
       claimable: row.claimable !== false,
       reason: str(row.reason) ?? (row.overlap?.with ? `Overlaps ${row.overlap.with}` : undefined),
+      waits: row.claimable === false ? waitsOf(row) : undefined,
       link: https(row.link),
     })),
   }))
 
   return { groups, next: str(o.next?.key), canClaim: num(o.counts?.canClaim) }
-}
-
-// needs_you: today’s items, or the richer shape with choices, a suggestion and progress.
-export function questionsOf(r: Result): Question[] {
-  const o = objectOf(r)
-  const items: Any[] = Array.isArray(o) ? o : (o?.items ?? o?.needs ?? [])
-
-  return items
-    .map(n => ({
-      id: str(n.id) ?? str(n.needId) ?? '',
-      key: str(n.key),
-      revision: n.revision,
-      text: str(n.text) ?? str(n.question) ?? str(n.ask) ?? '',
-      choices: list(n.choices ?? n.options),
-      suggested: words(n.suggested),
-      at: num(n.progress?.at),
-      of: num(n.progress?.of),
-    }))
-    .filter(q => q.id !== '')
 }
 
 export function heldOf(key: string, t: Any, b: Any): Held {
@@ -142,6 +152,7 @@ export function heldOf(key: string, t: Any, b: Any): Held {
     revision: str(b?.revision),
     fresh: typeof b?.fresh === 'boolean' ? b.fresh : undefined,
     paths: Array.isArray(b?.plannedPaths) ? b.plannedPaths.length : undefined,
+    firstPaths: arr(b?.plannedPaths).map(words).filter((p): p is string => !!p).slice(0, 2),
     acceptance: list(b?.acceptance),
   }
 }

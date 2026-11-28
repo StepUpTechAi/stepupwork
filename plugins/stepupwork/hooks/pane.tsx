@@ -2,11 +2,14 @@
 // a question waiting, and a train red. A minimised pane is one line.
 import type { EngineInterface, RenderInput } from 'claude-code'
 
-import type { Held, Status } from '../types'
-import { brief, checklist, fill, monogram, plural, question, redTrain } from './parts'
-import { readyRows } from './rows'
+import type { Status } from '../types'
+import { countsLine, plural, questionCount, readyCount, waitingOf, workshopLink } from './counts'
+import { ctxOf, fill, footer, monogram, rule } from './parts'
 import type { Ctx } from './parts'
-import { clockTime, isRunning, setView, snapshot, took } from './state'
+import { question } from './question'
+import { readyRows } from './rows'
+import { brief, checklist, lease } from './ticket'
+import { clockTime, isRunning, setView, snapshot } from './state'
 
 // Step Up’s swoosh, the product’s mark (never Jen’s).
 const SWOOSH = [
@@ -16,20 +19,21 @@ const SWOOSH = [
 
 type PaneEvent = RenderInput<'Pane'>
 
-function signedOut($: EngineInterface, c: Ctx, e: PaneEvent) {
+function signedOut($: EngineInterface, c: Ctx) {
   const { Box, Text, Button } = c.ui
-  const ui = $.ui.resolve(e)
 
   return (
-    <Box flexDirection="column" gap={1}>
-      {'Svg' in ui && <ui.Svg source={SWOOSH} alt="StepUpWork" width={40} height={40} />}
+    <Box flexDirection="column" gap={1} alignItems="flex-start" paddingY={1}>
+      {c.Svg && <c.Svg source={SWOOSH} alt="StepUpWork" width={40} height={40} />}
       <Text size="title" bold>
         Sign in to your workshop
       </Text>
       <Text dimColor>
         StepUpWork isn’t signed in here. Your ticket, its train, ready work and Jen’s questions show here once it is.
       </Text>
-      <Button key="sign-in" variant="primary" label="Sign in from /mcp" onPress={() => fill($, '/mcp')} />
+      <Box gap={1}>
+        <Button key="sign-in" variant="primary" label="Sign in from /mcp" onPress={() => fill($, '/mcp')} />
+      </Box>
       <Text dimColor size="caption">
         Already signed in on claude.ai? Restart this session to use that sign-in.
       </Text>
@@ -37,89 +41,57 @@ function signedOut($: EngineInterface, c: Ctx, e: PaneEvent) {
   )
 }
 
-function lease($: EngineInterface, c: Ctx, s: Status | null, held: Held) {
-  const { Box, Text, Button } = c.ui
-  const t = s?.train
-  const on = s?.since !== undefined ? took(Math.max(0, s.readAt - s.since)) : undefined
-  const trainLine =
-    !t || t.state === 'red'
-      ? undefined
-      : t.state === 'landed'
-        ? `Landed with train ${t.n}.`
-        : `On train ${t.n} · ${t.state}${t.round !== undefined ? ` · round ${t.round}` : ''}`
-
-  return (
-    <Box flexDirection="column">
-      <Box gap={1}>
-        <Text bold color="claude">
-          Working on
-        </Text>
-        {held.step !== undefined && <Text dimColor>{held.step}</Text>}
-        {on !== undefined && <Text dimColor>{`· ${on}`}</Text>}
-      </Box>
-      <Box gap={1}>
-        <Text mono bold size="heading">
-          {held.key}
-        </Text>
-        {held.points !== undefined && <Text backgroundColor="subtle">{` ${plural(held.points, 'point')} `}</Text>}
-      </Box>
-      {held.title !== undefined && <Text>{held.title}</Text>}
-      {t?.state === 'red' && redTrain($, c, t)}
-      {trainLine !== undefined && <Text dimColor>{trainLine}</Text>}
-      {!t && <Text dimColor>Not on a train yet. Hand it in once the branch is pushed.</Text>}
-      {held.latest !== undefined && <Text dimColor>{`Latest: ${held.latest}`}</Text>}
-      {!t && (
-        <Box gap={1} marginTop={1}>
-          <Button
-            key="hand-in"
-            variant="primary"
-            label="Hand in…"
-            onPress={() => fill($, `Push the branch for ${held.key}, then hand it in with the stepupwork submit tool.`)}
-          />
-          <Button key="park" label="Park…" onPress={() => fill($, `Park ${held.key} in StepUpWork. The reason: `)} />
-          <Button key="let-go" label="Let it go…" onPress={() => fill($, `Release ${held.key} in StepUpWork. The reason: `)} />
-        </Box>
-      )}
-    </Box>
-  )
-}
-
-function footer($: EngineInterface, c: Ctx, s: Status | null) {
-  const { Box, Text, Link } = c.ui
-  if (!s) return null
+function readLine(s: Status | null) {
+  if (!s) return undefined
   const rate = isRunning(s.train?.state) ? 'checks every 20 s while a train runs' : 'checks every minute'
 
+  return `Read ${clockTime(s.readAt)} · ${rate}`
+}
+
+// "Jen has 3 questions for you" and Answer, which opens the first in place.
+function jenCard($: EngineInterface, c: Ctx, count: number, canDraw: boolean) {
+  const { Box, Text, Button, Link } = c.ui
+  const frame = c.isTerm ? {} : { borderStyle: 'round', borderColor: 'subtle' as const, paddingX: 1 }
+
   return (
-    <Box justifyContent="space-between" gap={1}>
-      <Text dimColor size="caption">{`Read ${clockTime(s.readAt)} · ${rate}`}</Text>
-      {s.link !== undefined && <Link href={s.link}>Open the workshop</Link>}
+    <Box key="jen-card" gap={1} alignItems="center" {...frame}>
+      <Box flexShrink={0}>{monogram(c)}</Box>
+      <Box flexGrow={1} flexShrink={1} minWidth={0}>
+        <Text size="footnote">{`Jen has ${plural(count, 'question')} for you`}</Text>
+      </Box>
+      <Box flexShrink={0}>
+        {canDraw ? (
+          <Button key="answer" label="Answer" onPress={() => setView($, x => ({ ...x, answering: true }))} />
+        ) : (
+          c.workshop !== undefined && <Link href={c.workshop}>Answer in the workshop</Link>
+        )}
+      </Box>
     </Box>
   )
 }
 
 export async function drawPane($: EngineInterface, e: PaneEvent) {
-  const ui = $.ui.resolve(e)
-  const c: Ctx = { ui, isTerm: e.surface === 'terminal' }
-  const { Box, Text, Button } = ui
-  const { isIn, s, w, held, qs, on, v } = await snapshot($)
-  if (isIn === false) return signedOut($, c, e)
+  const { isIn, s, w, held, qs, on, v, l } = await snapshot($)
+  const c = ctxOf($, e, l, workshopLink(s, w, held, l))
+  const { Box, Text } = c.ui
+  if (isIn === false) return signedOut($, c)
   if (isIn === null) return <Text dimColor>Run /stepupwork to load ready work.</Text>
-  const waiting = qs.items.filter(q => !qs.skipped.includes(q.id))
+  const waiting = waitingOf(qs)
   const q = waiting[0]
+  const asks = questionCount(qs, s)
   const t = s?.train
   if (e.props.placement === 'widget') {
-    const glance = [held?.key ?? 'Nothing claimed', t && `train ${t.n} ${t.state}`, waiting.length && `? ${waiting.length}`]
+    const glance = [held?.key ?? 'Nothing claimed', t && `train ${t.n} ${t.state}`, asks && `? ${asks}`]
 
     return <Text wrap="truncate">{glance.filter(Boolean).join(' · ')}</Text>
   }
   const showQuestion = q !== undefined && (held !== null || v.answering)
   const asked = showQuestion && question($, c, q, qs.skipped.length + 1, qs.skipped.length + waiting.length)
+  const read = readLine(s)
 
   if (held === null) {
-    const counts = [
-      `${s?.ready ?? w?.canClaim ?? 0} ready for you`,
-      waiting.length ? `${plural(waiting.length, 'question')} for you` : '',
-    ]
+    const ready = readyCount(w, s)
+    const counts = countsLine(ready, asks)
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -127,30 +99,41 @@ export async function drawPane($: EngineInterface, e: PaneEvent) {
           <Text size="heading" bold>
             Nothing claimed
           </Text>
-          <Text dimColor>{counts.filter(Boolean).join(' · ')}</Text>
+          {counts !== undefined && (
+            <Text dimColor size="footnote">
+              {counts}
+            </Text>
+          )}
         </Box>
-        {waiting.length > 0 && !showQuestion && (
-          <Box gap={1}>
-            {monogram(c)}
-            <Text>{`Jen has ${plural(waiting.length, 'question')} for you`}</Text>
-            <Button key="answer" label="Answer" onPress={() => setView($, x => ({ ...x, answering: true }))} />
-          </Box>
-        )}
+        {asks > 0 && !showQuestion && jenCard($, c, asks, q !== undefined)}
         {asked}
-        {w ? readyRows($, c, w, 'Ready work', !showQuestion) : <Text dimColor>Loading ready work…</Text>}
-        {footer($, c, s)}
+        {w ? (
+          readyRows($, c, w, { label: 'Ready work', right: ready !== undefined ? `${ready} you can take` : undefined }, !showQuestion)
+        ) : (
+          <Text dimColor>Loading ready work…</Text>
+        )}
+        {rule(c)}
+        {read !== undefined && footer(c, read)}
       </Box>
     )
   }
+  const isRed = t?.state === 'red'
 
   return (
     <Box flexDirection="column" gap={1}>
       {asked}
+      {asked && rule(c)}
       {lease($, c, s, held)}
+      {rule(c)}
       {held.acceptance.length > 0 && checklist($, c, held, on[held.key] ?? [])}
-      {brief($, c, held, v.wholeBrief)}
-      {t?.state === 'red' && w && readyRows($, c, w, 'Next for you while the train is repaired', !showQuestion, held.key)}
-      {footer($, c, s)}
+      {held.acceptance.length > 0 && rule(c)}
+      {!isRed && brief($, c, held, v.wholeBrief)}
+      {!isRed && !!held.brief && rule(c)}
+      {isRed &&
+        w &&
+        readyRows($, c, w, { label: 'Next for you', right: 'while the train is repaired', most: 2 }, !showQuestion, held.key)}
+      {isRed && w && rule(c)}
+      {read !== undefined && footer(c, read)}
     </Box>
   )
 }

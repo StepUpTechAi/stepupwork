@@ -3,40 +3,20 @@
 import type { EngineInterface, Timer } from 'claude-code'
 
 import type { Question } from '../types'
-import { heldOf, noticesOf, objectOf, questionsOf, readyOf, statusLine, statusOf, textOf } from './read'
+import { questionOf, questionsOf } from './asks'
+import { statusText } from './counts'
+import { heldOf, noticesOf, objectOf, readyOf, statusOf, textOf } from './read'
 import type { Notice, Result } from './read'
+import { call, SIGN_IN } from './connect'
 import { isRunning, setLinks, setQuestions, setReady, setSignedIn, setStatus, setTicket, setTicks, setView, snapshot } from './state'
 
 type $ = EngineInterface
 
-// The plugin server first, then the claude.ai connector of the same name: a
-// session started from the claude.ai plugin has the connector signed in, while
-// the plugin server may still wait on sign-in.
-const SERVERS = ['plugin:stepupwork:stepupwork', 'claude.ai stepupwork', 'stepupwork']
+export { call, SIGN_IN } from './connect'
 
-export const SIGN_IN =
-  'StepUpWork is not signed in here. Connect it in Settings › Plugins, or run /mcp and sign in to stepupwork.'
-
-// The first of SERVERS that is connected, or null when none is.
-let server: string | null = null
 let timer: Timer | null = null
 let period = 0
 const shown = new Set<string>()
-
-export async function call($: $, tool: string, args: Record<string, unknown>): Promise<Result | null> {
-  if (server === null) {
-    for (const s of SERVERS) {
-      const c = await $.mcp.connect(s)
-      if (c.isConnected) {
-        server = c.server
-        break
-      }
-    }
-  }
-  if (server === null) return null
-
-  return (await $.mcp.call(server, tool, args)) as Result
-}
 
 async function stored<T>($: $, key: string): Promise<T | undefined> {
   return (await $.store.get(key).catch(() => undefined)) as T | undefined
@@ -60,14 +40,20 @@ export async function poll($: $, isFirst = false): Promise<boolean> {
   if (r.isError) return true
   const s = statusOf(r, await $.clock.now(), await stored<string>($, 'ticket'))
   await setStatus($, () => s)
-  $.ui.status(statusLine(s))
+  await showStatus($)
   await announce($, noticesOf(r, s))
   if (s.key && s.key !== (await snapshot($)).held?.key) await loadTicket($, s.key)
-  if (isFirst || s.questions !== prev?.questions) await loadQuestions($)
+  if (isFirst || s.questions !== prev?.questions) await loadQuestions($, questionOf(objectOf(r)?.question))
   if (s.train?.state === 'red' && prev?.train?.state !== 'red') await loadReady($)
   schedule($, isRunning(s.train?.state) ? 20_000 : 60_000)
 
   return true
+}
+
+// The status line, from the same counts the pane’s header and rows heading say.
+export async function showStatus($: $) {
+  const { s, w, qs, held } = await snapshot($)
+  $.ui.status(statusText(s, w, qs, held))
 }
 
 // Every 60 s, and every 20 s while one of the person’s trains runs.
@@ -106,6 +92,7 @@ export async function loadReady($: $) {
   if (!r) return
   const w = r.isError ? { groups: [], note: textOf(r) } : readyOf(r)
   await setReady($, w)
+  await showStatus($)
   await keep($, Object.fromEntries(w.groups.flatMap(g => g.rows).map(row => [row.key, row.link])))
 }
 
@@ -118,11 +105,19 @@ export async function loadTicket($: $, key: string) {
   await loadTicks($)
 }
 
-export async function loadQuestions($: $) {
+// needs_you’s questions; my_status’s waiting question where needs_you leaves it out.
+export async function loadQuestions($: $, asked: Question | null = null) {
   const r = await call($, 'needs_you', {})
-  if (!r || r.isError) return
-  const items = questionsOf(r)
-  await setQuestions($, q => ({ items, skipped: q.skipped.filter(id => items.some(i => i.id === id)) }))
+  if ((!r || r.isError) && !asked) return
+  const got = r && !r.isError ? questionsOf(r) : { items: [] as Question[], count: undefined }
+  const items = asked && !got.items.some(i => i.id === asked.id) ? [asked, ...got.items] : got.items
+  await setQuestions($, q => ({
+    items,
+    skipped: q.skipped.filter(id => items.some(i => i.id === id)),
+    isRead: true,
+    count: got.count,
+  }))
+  await showStatus($)
 }
 
 async function person($: $) {
@@ -165,15 +160,17 @@ export async function assign($: $, key: string): Promise<string> {
   if (r && !r.isError) {
     await save($, 'ticket', key)
     await setStatus($, s => (s ? { ...s, key, since: s.readAt, train: undefined } : s))
-    $.ui.status(key)
     await loadTicket($, key)
+    await showStatus($)
   }
   $.ui.toast(said)
 
   return said
 }
 
-export async function answer($: $, q: Question, given: { choice: string } | { text: string } | { skip: true }) {
+type Given = { choice: string } | { text: string } | { skip: true }
+
+export async function answer($: $, q: Question, given: Given) {
   const r = await call($, 'answer_need', { key: q.key, needId: q.id, revision: q.revision, answer: given })
   const isSkip = 'skip' in given
   // The hub may not take a skip yet: the pane skips it here all the same.
@@ -184,4 +181,5 @@ export async function answer($: $, q: Question, given: { choice: string } | { te
   if (!isSkip) await loadQuestions($)
   const left = (await snapshot($)).qs
   if (!left.items.some(i => !left.skipped.includes(i.id))) await setView($, v => ({ ...v, answering: false }))
+  await showStatus($)
 }

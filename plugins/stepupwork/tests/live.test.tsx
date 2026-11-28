@@ -14,11 +14,11 @@ const train = (state: string, round = 2) => ({
 })
 const RED = 'Train 412 went red at e2e in round 2, with DEMO-1 on it.'
 
-test('today: my_status answers only its line, the status line shows it, polled every 60 s', async ($, on) => {
-  const w = world(on, { ...BASE, my_status: { line: 'Nothing claimed. 2 ready for you.' } })
+test('today: my_status answers only its line; the status line counts what the pane counts, polled every 60 s', async ($, on) => {
+  const w = world(on, { ...BASE, my_status: { line: 'Nothing claimed. 5 ready for you.' } })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await w.clock.settle()
-  expect(w.statuses.at(-1)).toBe('Nothing claimed. 2 ready for you.')
+  expect(w.statuses.at(-1)).toBe('Nothing claimed · 2 ready for you')
   expect(w.called('my_status')).toEqual([{ tool: 'my_status', args: {} }])
   await w.clock.advance(59_000)
   expect(w.called('my_status')).toHaveLength(1)
@@ -27,8 +27,15 @@ test('today: my_status answers only its line, the status line shows it, polled e
   expect(w.toasts).toEqual([])
 })
 
-test('a plain-text my_status still sets the status line', async ($, on) => {
+test('a plain-text my_status still sets the status line, from the rows’ count', async ($, on) => {
   const w = world(on, { ...BASE, my_status: 'Nothing claimed.' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await w.clock.settle()
+  expect(w.statuses.at(-1)).toBe('Nothing claimed · 2 ready for you')
+})
+
+test('ready_work not answering: the status line is my_status’s own line', async ($, on) => {
+  const w = world(on, { needs_you: { items: [] }, my_status: 'Nothing claimed.' })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await w.clock.settle()
   expect(w.statuses.at(-1)).toBe('Nothing claimed.')
@@ -89,8 +96,9 @@ test('the red pane: the train, who is on it, and Ask Jen what broke', async ($, 
     const ui = await $.ui.mount({ ...PANE, surface })
     const head = await ui.find({ type: 'Text', text: /went red/ })
     expect(head?.text).toBe(surface === 'terminal' ? '● Train 412 went red at e2e' : 'Train 412 went red at e2e')
-    expect((await ui.find({ type: 'Text', text: /Nothing waits on you/ }))?.text).toContain('Jen is repairing it.')
-    expect((await ui.find({ type: 'Text', text: /^Next for you/ }))?.text).toContain('while the train is repaired')
+    expect((await ui.find({ type: 'Text', text: /Nothing waits on you/ }))?.text).toContain('Jen is repairing it on the siding.')
+    expect((await ui.find({ type: 'Text', text: /^Next for you/ }))?.text).toBe('Next for you · demo · now')
+    expect((await ui.find({ type: 'Text', text: /^while the train/ }))?.text).toBe('while the train is repaired')
     expect(await ui.find({ type: 'Button', key: 'assign-DEMO-1' })).toBeUndefined()
     expect(await ui.find({ type: 'Button', key: 'hand-in' })).toBeUndefined()
     await ui.press({ key: 'what-broke' })

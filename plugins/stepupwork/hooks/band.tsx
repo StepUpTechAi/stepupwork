@@ -1,26 +1,19 @@
 // The "Jen asks" band above the prompt: the question the pane would show next,
-// in one row, with Jen's quick replies and Open. It reads the pane's questions
-// and answers through the pane's own path, so both move on together.
+// its text and each choice’s full text wrapped, never cut, then Jen’s quick
+// replies by their short labels and Open. It reads the pane’s questions and
+// answers through the pane’s own path, so both move on together.
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import type { Question } from '../types'
+import { isSuggested } from './asks'
+import { workshopLink } from './counts'
 import { answer } from './hub'
-import { monogram, primary } from './parts'
+import { ctxOf, monogram, primary } from './parts'
+import { choiceLines, cutNote } from './question'
 import { PANE, setView, snapshot } from './state'
 
 type $ = EngineInterface
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Next = (e: any) => Promise<RenderElement>
-
-// A quick reply's short form: "A" for "A: hide them", the whole of a short one.
-export function shortOf(choice: string) {
-  const head = /^([^:]{1,12}):/.exec(choice)?.[1]?.trim()
-
-  return head || (choice.length > 16 ? `${choice.slice(0, 15)}…` : choice)
-}
-
-const isSuggested = (q: Question, choice: string) =>
-  q.suggested !== undefined && (choice === q.suggested || choice.startsWith(`${q.suggested}:`))
 
 async function openPane($: $) {
   await setView($, v => ({ ...v, answering: true }))
@@ -29,35 +22,40 @@ async function openPane($: $) {
 
 export async function band($: $, e: RenderInput<'AbovePrompt'>, next: Next) {
   if (e.props.hasSurvey) return next(e)
-  const { isIn, qs } = await snapshot($)
+  const { isIn, qs, s, w, held, l } = await snapshot($)
   const q = qs.items.find(i => !qs.skipped.includes(i.id))
   if (isIn !== true || q === undefined) return next(e)
-  const ui = $.ui.resolve(e)
-  const { Box, Text, Button } = ui
-  // The terminal draws the row as text, each reply "1: A"; the desktop as buttons.
-  const isTerm = e.surface === 'terminal'
+  const c = ctxOf($, e, l, workshopLink(s, w, held, l))
+  const { Box, Text, Button } = c.ui
   const about = q.key !== undefined ? ` about ${q.key}` : ''
+  // The terminal draws the replies as text, each "1: A"; the desktop as buttons.
   // Digits for the replies; "o" for Open, clear of them.
-  const keys = (k: string) => (isTerm ? { plain: true as const, hotkey: k } : {})
+  const keys = (k: string) => (c.isTerm ? { plain: true as const, hotkey: k } : {})
 
   return (
-    <Box gap={1} alignItems="center">
-      {monogram({ ui, isTerm })}
-      <Box flexGrow={1} flexShrink={1}>
-        <Text wrap="truncate">
-          <Text bold>{`Jen asks${about}:`}</Text> {q.text}
-        </Text>
+    <Box flexDirection="column">
+      <Box gap={1} alignItems="flex-start">
+        <Box flexShrink={0}>{monogram(c)}</Box>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+          <Text>
+            <Text bold>{`Jen asks${about}:`}</Text> {q.text}
+          </Text>
+          {choiceLines(c, q)}
+          {cutNote(c, q)}
+        </Box>
       </Box>
-      {q.choices.slice(0, 9).map((choice, i) => (
-        <Button
-          key={`band-choice-${i}`}
-          label={shortOf(choice)}
-          {...keys(String(i + 1))}
-          {...(isTerm ? {} : primary(isSuggested(q, choice)))}
-          onPress={() => answer($, q, { choice })}
-        />
-      ))}
-      <Button key="band-open" label="Open" {...keys('o')} onPress={() => openPane($)} />
+      <Box gap={1} flexWrap="wrap">
+        {q.choices.slice(0, 9).map((choice, i) => (
+          <Button
+            key={`band-choice-${i}`}
+            label={choice.short}
+            {...keys(String(i + 1))}
+            {...(c.isTerm ? {} : primary(isSuggested(q, choice)))}
+            onPress={() => answer($, q, { choice: choice.value })}
+          />
+        ))}
+        <Button key="band-open" label="Open" {...keys('o')} onPress={() => openPane($)} />
+      </Box>
     </Box>
   )
 }

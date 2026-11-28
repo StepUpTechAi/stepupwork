@@ -1,26 +1,54 @@
-// The pane’s parts: Jen’s question, the acceptance checklist, the brief, a red
-// train, and the ready rows. One tree for every surface; the terminal draws
-// plain text rows where the desktop draws a richer element.
-import type { Elements, EngineInterface } from 'claude-code'
+// The pane’s small parts, one tree for every surface: Jen’s mark, a pill, a
+// section’s head, a rule between sections and the footer. The desktop draws an
+// Svg where it has one; the terminal draws text.
+import type { Elements, EngineInterface, RenderInput, RenderSurface } from 'claude-code'
 
-import type { Held, Question, Train } from '../types'
-import { answer, tick } from './hub'
-import { setView } from './state'
+export type UI = Pick<Elements['desktop'], 'Box' | 'Text' | 'Button' | 'Input' | 'Link' | 'Markdown' | 'Progress'>
+export type Ctx = {
+  ui: UI
+  Svg?: Elements['desktop']['Svg']
+  isTerm: boolean
+  // The pane’s width in cells, what the rows budget against.
+  cols: number
+  links: Record<string, string>
+  workshop?: string
+}
 
-export type UI = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button' | 'Input' | 'Link' | 'Markdown' | 'Progress'>
-export type Ctx = { ui: UI; isTerm: boolean }
+type Site = RenderInput<'Pane'> | RenderInput<'AbovePrompt'>
+
+export function ctxOf($: EngineInterface, e: Site, links: Record<string, string> = {}, workshop?: string): Ctx {
+  const ui = $.ui.resolve(e)
+  const surface: RenderSurface = e.surface
+
+  return {
+    ui,
+    // The terminal’s table answers an Svg as an empty Box: text marks there.
+    Svg: surface !== 'terminal' && 'Svg' in ui ? ui.Svg : undefined,
+    isTerm: surface === 'terminal',
+    cols: e.props.bodyColumns,
+    links,
+    workshop,
+  }
+}
 
 export function fill($: EngineInterface, text: string) {
   return $.prompt.fill({ text, mode: 'replace' })
 }
-export const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+export { plural } from './counts'
 // A key on the terminal, where a focused pane takes it; none elsewhere.
 export const hot = (c: Ctx, k: string) => (c.isTerm ? { hotkey: k } : {})
 export const primary = (is: boolean) => (is ? { variant: 'primary' as const } : {})
 
-// Jen’s avatar: the J monogram.
-export function monogram(c: Ctx) {
+// Jen’s mark: the J monogram, a round one where the surface draws an Svg.
+const MONOGRAM = [
+  '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#BD6844"/>',
+  '<text x="10" y="14.4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700"',
+  ' fill="#FFFFFF">J</text></svg>',
+].join('')
+
+export function monogram(c: Ctx, px = 18) {
   const { Text } = c.ui
+  if (c.Svg) return <c.Svg source={MONOGRAM} alt="Jen" width={px} height={px} />
 
   return (
     <Text bold color="inverseText" backgroundColor="claude">
@@ -29,119 +57,69 @@ export function monogram(c: Ctx) {
   )
 }
 
-export function question($: EngineInterface, c: Ctx, q: Question, place: number, total: number) {
-  const { Box, Text, Button, Input, Markdown } = c.ui
-  const n = c.isTerm ? q.choices.length + 1 : 0
+// A rounded label as the engine can draw one: a run on a tone. "Next", "To plan".
+export type Tone = 'claude' | 'subtle' | 'success' | 'error'
+export function pill(c: Ctx, text: string, tone: Tone, dim = false) {
+  const { Text } = c.ui
+  const ink = tone === 'subtle' ? {} : { color: 'inverseText' as const }
 
   return (
-    <Box flexDirection="column" gap={1}>
-      <Box justifyContent="space-between">
-        <Text bold>Questions for you</Text>
-        <Text dimColor>{`${q.at ?? place} of ${q.of ?? total}`}</Text>
-      </Box>
-      <Box gap={1}>
-        {monogram(c)}
-        <Text bold>Jen</Text>
-        {q.key !== undefined && <Text dimColor>{q.key}</Text>}
-      </Box>
-      {c.isTerm ? <Text>{q.text}</Text> : <Markdown key={`q-${q.id}`} text={q.text} />}
-      <Box gap={1} flexWrap="wrap">
-        {q.choices.map((choice, i) => (
-          <Button
-            key={`choice-${i}`}
-            label={choice}
-            {...hot(c, String(i + 1))}
-            {...primary(choice === q.suggested || choice.startsWith(`${q.suggested}:`))}
-            onPress={() => answer($, q, { choice })}
-          />
-        ))}
-        <Button key="skip" label="Skip" {...hot(c, String(n))} onPress={() => answer($, q, { skip: true })} />
-      </Box>
-      {q.suggested !== undefined && <Text dimColor>{`Jen suggests ${q.suggested}.`}</Text>}
-      <Input
-        key="free-answer"
-        placeholder="Or answer in your words"
-        submitLabel="Send"
-        onSubmit={text => (text.trim() ? answer($, q, { text: text.trim() }) : undefined)}
-      />
-    </Box>
+    <Text size="caption" backgroundColor={tone} dimColor={dim} {...ink}>
+      {` ${text} `}
+    </Text>
   )
 }
 
-export function checklist($: EngineInterface, c: Ctx, held: Held, on: number[]) {
-  const { Box, Text, Button, Progress } = c.ui
-  const n = held.acceptance.length
-  const said = `${on.filter(i => i < n).length} of ${n} ticked by you`
+// A section’s head: its name on the left, a dim figure on the right.
+export function section(c: Ctx, label: string, right?: string) {
+  const { Box, Text } = c.ui
 
   return (
-    <Box flexDirection="column">
-      {c.isTerm ? (
-        <Text bold>{`Acceptance · ${said}`}</Text>
-      ) : (
-        <Progress label="Acceptance" value={on.filter(i => i < n).length} max={n} valueText={said} color="success" />
-      )}
-      {held.acceptance.map((criterion, i) => {
-        const has = on.includes(i)
-
-        return (
-          <Button key={`tick-${i}`} plain onPress={() => tick($, held.key, i)}>
-            <Text {...(has ? { color: 'success' } : {})}>{c.isTerm ? (has ? '[x]' : '[ ]') : has ? '☑' : '☐'}</Text>{' '}
-            <Text dimColor={has}>{criterion}</Text>
-          </Button>
-        )
-      })}
-    </Box>
-  )
-}
-
-export function brief($: EngineInterface, c: Ctx, held: Held, isWhole: boolean) {
-  const { Box, Text, Button, Link, Markdown } = c.ui
-  if (!held.brief) return null
-  const rev = held.revision && (held.revision.startsWith('r') ? held.revision : `r${held.revision}`)
-  const fresh = held.fresh === undefined ? undefined : held.fresh ? 'fresh' : 'not fresh'
-  const paths = held.paths === undefined ? undefined : plural(held.paths, 'planned path')
-  const summary = held.brief.split(/\n\s*\n/)[0] ?? held.brief
-  const text = isWhole ? held.brief : summary
-
-  return (
-    <Box flexDirection="column">
-      <Box justifyContent="space-between">
-        <Text bold>Brief</Text>
-        <Text dimColor>{[rev, fresh, paths].filter(Boolean).join(' · ')}</Text>
-      </Box>
-      {c.isTerm ? <Text>{text}</Text> : <Markdown key="brief" text={text} />}
-      <Box gap={1}>
-        {summary !== held.brief && (
-          <Button
-            key="whole-brief"
-            label={isWhole ? 'Show less' : 'Read the whole brief'}
-            onPress={() => setView($, v => ({ ...v, wholeBrief: !isWhole }))}
-          />
-        )}
-        {held.link !== undefined && <Link href={held.link}>Open in the workshop</Link>}
-      </Box>
-    </Box>
-  )
-}
-
-export function redTrain($: EngineInterface, c: Ctx, t: Train) {
-  const { Box, Text, Button, Link } = c.ui
-  const head = `Train ${t.n} went red${t.red ? ` at ${t.red}` : ''}`
-  const frame = c.isTerm ? {} : { borderStyle: 'round', borderColor: 'error' as const, paddingX: 1 }
-
-  return (
-    <Box flexDirection="column" {...frame}>
-      <Box gap={1}>
-        <Text bold color="error">
-          {c.isTerm ? `● ${head}` : head}
+    <Box justifyContent="space-between" gap={1}>
+      <Box flexShrink={1} minWidth={0}>
+        <Text bold size="footnote">
+          {label}
         </Text>
-        {t.round !== undefined && <Text dimColor>{`round ${t.round}`}</Text>}
       </Box>
-      <Text>Jen is repairing it. Your ticket stays on the train. Nothing waits on you.</Text>
-      <Box gap={1}>
-        <Button key="what-broke" label="Ask Jen what broke" onPress={() => fill($, `Ask Jen what broke train ${t.n}.`)} />
-        {t.link !== undefined && <Link href={t.link}>{`Open train ${t.n} in the workshop`}</Link>}
+      {right !== undefined && (
+        <Box flexShrink={0}>
+          <Text dimColor size="caption">
+            {right}
+          </Text>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+const RULE = [
+  '<svg width="2000" height="1" preserveAspectRatio="none">',
+  '<rect width="2000" height="1" fill="#80808040"/></svg>',
+].join('')
+
+// The line between sections; the terminal leaves a blank row instead.
+export function rule(c: Ctx) {
+  if (!c.Svg) return null
+
+  return <c.Svg source={RULE} alt="Section break" height={1} />
+}
+
+// "Read 9:14am · checks every minute" on the left, "Open the workshop" on the right.
+export function footer(c: Ctx, read: string) {
+  const { Box, Text, Link } = c.ui
+
+  return (
+    <Box justifyContent="space-between" alignItems="center" gap={1}>
+      <Box flexShrink={1} minWidth={0}>
+        <Text dimColor size="caption">
+          {read}
+        </Text>
       </Box>
+      {c.workshop !== undefined && (
+        <Box flexShrink={0}>
+          <Link href={c.workshop}>Open the workshop</Link>
+        </Box>
+      )}
     </Box>
   )
 }

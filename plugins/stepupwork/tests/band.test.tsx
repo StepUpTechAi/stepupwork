@@ -57,24 +57,23 @@ test('no question waiting: no band, on either surface', async ($, on) => {
   }
 })
 
-test('a question waiting: "Jen asks" in one row, its replies and Open', async ($, on) => {
+test('a question waiting: "Jen asks", the whole question wrapped, its replies and Open', async ($, on) => {
   const w = world(on, hub(ASKS))
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await w.clock.settle()
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
-    const root = await ui.drawn()
-    expect(root).toMatchObject({ type: 'Box' })
-    expect((root as { props?: { flexDirection?: string } }).props?.flexDirection).toBeUndefined()
+    expect(await ui.drawn()).toMatchObject({ type: 'Box' })
     const ask = await ui.find({ type: 'Text', text: /^Jen asks about DEMO-1:/ })
     expect(ask?.text).toBe(`Jen asks about DEMO-1: ${ASKS[0]?.text}`)
-    expect(ask?.props.wrap).toBe('truncate')
+    // Wrapped, never cut.
+    expect(ask?.props.wrap).toBeUndefined()
     const a = await ui.find({ type: 'Button', key: 'band-choice-0' })
     const b = await ui.find({ type: 'Button', key: 'band-choice-1' })
     const open = await ui.find({ type: 'Button', key: 'band-open' })
-    expect([a?.props.label, b?.props.label, open?.props.label]).toEqual(['A', 'B', 'Open'])
+    expect([a?.props.label, b?.props.label, open?.props.label]).toEqual(['A: hide them', 'B: show them, no names', 'Open'])
     if (surface === 'terminal') {
-      // One text row: "1: A  2: B  o: Open", no button chrome.
+      // Text replies: "1: A: hide them  2: …  o: Open", no button chrome.
       expect([a?.props.hotkey, b?.props.hotkey, open?.props.hotkey]).toEqual(['1', '2', 'o'])
       expect([a?.props.plain, b?.props.plain, open?.props.plain]).toEqual([true, true, true])
     } else {

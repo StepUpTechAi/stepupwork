@@ -9,11 +9,11 @@ type Change<T> = (value: T) => T
 // Change a tag when what an atom holds changes: it declines what an earlier
 // version stored, which outlives a reload.
 const signedIn = atom({ plugin: 'stepupwork', key: 'signedIn' } as const, null, { shape: 'signin-1' })
-const status = atom({ plugin: 'stepupwork', key: 'status' } as const, null, { shape: 'status-1' })
-const ready = atom({ plugin: 'stepupwork', key: 'ready' } as const, null, { shape: 'ready-3' })
-const ticket = atom({ plugin: 'stepupwork', key: 'ticket' } as const, null, { shape: 'ticket-2' })
-const questions = atom({ plugin: 'stepupwork', key: 'questions' } as const, { items: [], skipped: [] }, {
-  shape: 'needs-1',
+const status = atom({ plugin: 'stepupwork', key: 'status' } as const, null, { shape: 'status-2' })
+const ready = atom({ plugin: 'stepupwork', key: 'ready' } as const, null, { shape: 'ready-4' })
+const ticket = atom({ plugin: 'stepupwork', key: 'ticket' } as const, null, { shape: 'ticket-3' })
+const questions = atom({ plugin: 'stepupwork', key: 'questions' } as const, { items: [], skipped: [], isRead: false }, {
+  shape: 'needs-2',
 })
 // The acceptance ticks of the person signed in, by ticket key: the criteria ticked.
 const ticks = atom({ plugin: 'stepupwork', key: 'ticks' } as const, {}, { shape: 'ticks-1' })
@@ -77,10 +77,12 @@ export function took(ms: number): string {
   return h ? `${h} h ${min % 60} min` : `${min} min`
 }
 
+// "9:14am", as the footer reads
 export function clockTime(ms: number): string {
   const d = new Date(ms)
+  const h = d.getHours()
 
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`
 }
 
 export const isRunning = (state?: string) => !!state && state !== 'landed'
