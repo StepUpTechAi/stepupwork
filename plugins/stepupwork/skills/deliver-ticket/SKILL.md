@@ -5,7 +5,7 @@ description: Deliver a ticket from your StepUpWork workshop. Use when asked to p
 
 # Deliver a ticket
 
-The workshop's tools come from the `stepupwork` MCP server. If they are missing, sign in from `/mcp`.
+The workshop's tools come from either StepUpWork connection, the plugin's `stepupwork` server or the claude.ai connector; both are the same workshop. If neither has them, sign in from `/mcp`.
 
 1. `ready_work` lists the tickets you can take.
 2. `assign` assigns one to you. It stays yours until you hand it in.
