@@ -12,6 +12,8 @@ test('signed out: the pane says how to sign in, and nothing polls', async ($, on
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /^Sign in/ }))?.text).toBe('Sign in to your workshop')
     expect(await ui.find({ type: 'Svg' })).toEqual(surface === 'desktop' ? expect.anything() : undefined)
+    expect((await ui.find({ type: 'Button', key: 'sign-in' }))?.props).toMatchObject({ label: 'Sign in from /mcp', variant: 'primary' })
+    expect((await ui.find({ type: 'Text', text: /^Already signed in on claude\.ai\?/ }))?.props.size).toBe('caption')
     await ui.press({ key: 'sign-in' })
     await ui.unmount()
   }
